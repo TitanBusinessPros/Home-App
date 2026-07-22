@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Street Stories</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+/* =========================================================================
+   Street Stories — design tokens
+   Palette: a grounded, warm dusk rather than a clinical or pitying tone.
+   Deep ink-navy anchors the page; amber is earned light (hope, warmth);
+   sage is quiet growth/companionship (used sparingly, near animal counts).
+   ========================================================================= */
+:root {
+  --ink-900: #14181c;
+  --ink-800: #1d2329;
+  --ink-700: #2a323a;
+  --paper-050: #f6f3ec;
+  --amber-500: #d9a544;
+  --amber-600: #c08d2e;
+  --sage-500: #7a8b6f;
+  --line: rgba(246, 243, 236, 0.14);
+  --text-muted: rgba(246, 243, 236, 0.62);
+  --font-display: "Fraunces", "Iowan Old Style", ui-serif, Georgia, serif;
+  --font-body: "Work Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --radius: 14px;
+  --radius-sm: 8px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--ink-900); color: var(--paper-050); font-family: var(--font-body); -webkit-font-smoothing: antialiased; }
+body { min-height: 100vh; display: flex; flex-direction: column; }
+a { color: var(--amber-500); }
+a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--amber-500); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+.site-header { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 1.75rem; border-bottom: 1px solid var(--line); }
+.brand { font-family: var(--font-display); font-size: 1.35rem; font-weight: 600; letter-spacing: 0.01em; color: var(--paper-050); text-decoration: none; background: none; border: none; cursor: pointer; padding: 0; }
+.brand-mark { color: var(--amber-500); }
+.nav-links { display: flex; gap: 1.5rem; align-items: center; font-size: 0.95rem; }
+.nav-links a, .nav-links button { color: var(--text-muted); text-decoration: none; background: none; border: none; font-family: var(--font-body); font-size: 0.95rem; cursor: pointer; padding: 0; }
+.nav-links a:hover, .nav-links button:hover { color: var(--paper-050); }
+
+.page { flex: 1; width: 100%; max-width: 960px; margin: 0 auto; padding: 2.5rem 1.75rem 4rem; }
+.page--narrow { max-width: 480px; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; line-height: 1.15; margin: 0 0 0.6em; }
+h1 { font-size: clamp(2rem, 4vw, 2.75rem); }
+h2 { font-size: 1.5rem; }
+p { line-height: 1.6; color: var(--text-muted); }
+.eyebrow { font-family: var(--font-mono); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.14em; color: var(--amber-500); margin-bottom: 0.75rem; }
+
+.card { background: var(--ink-800); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.75rem; }
+
+label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.35rem; margin-top: 1rem; }
+label:first-of-type { margin-top: 0; }
+input, textarea, select { width: 100%; background: var(--ink-900); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 0.65rem 0.8rem; color: var(--paper-050); font-family: var(--font-body); font-size: 0.95rem; }
+textarea { resize: vertical; min-height: 160px; }
+.field-hint { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); margin-top: 0.35rem; }
+.field-hint.over-limit { color: #d97757; }
+
+button, .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; border: none; border-radius: var(--radius-sm); padding: 0.7rem 1.2rem; font-family: var(--font-body); font-size: 0.95rem; font-weight: 600; cursor: pointer; background: var(--amber-500); color: var(--ink-900); }
+button:hover { background: var(--amber-600); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.secondary { background: transparent; border: 1px solid var(--line); color: var(--paper-050); }
+button.secondary:hover { background: var(--ink-700); }
+
+.form-row { margin-top: 1.5rem; display: flex; gap: 0.75rem; }
+.tabs { display: flex; gap: 0.25rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--line); }
+.tab { padding: 0.6rem 1rem; font-size: 0.9rem; color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent; background:none; border-top:none; border-left:none; border-right:none; font-family: var(--font-body); }
+.tab.active { color: var(--paper-050); border-bottom-color: var(--amber-500); }
+
+.message { margin-top: 1rem; padding: 0.75rem 1rem; border-radius: var(--radius-sm); font-size: 0.9rem; }
+.message.error { background: rgba(217, 119, 87, 0.15); color: #eea88f; }
+.message.success { background: rgba(122, 139, 111, 0.2); color: #c3d1b8; }
+
+.badge { display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; padding: 0.3rem 0.6rem; border-radius: 999px; }
+.badge--pending { background: rgba(217, 165, 68, 0.15); color: var(--amber-500); }
+.badge--approved { background: rgba(122, 139, 111, 0.2); color: var(--sage-500); }
+.badge--rejected { background: rgba(217, 119, 87, 0.15); color: #d97757; }
+.badge--draft { background: rgba(246, 243, 236, 0.1); color: var(--text-muted); }
+
+.image-slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 1rem; }
+.image-slot { aspect-ratio: 3 / 4; border: 1px dashed var(--line); border-radius: var(--radius-sm); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; overflow: hidden; position: relative; background: var(--ink-900); }
+.image-slot img { width: 100%; height: 100%; object-fit: cover; }
+.image-slot .slot-label { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-muted); }
+.image-slot .slot-badge { position: absolute; top: 0.5rem; left: 0.5rem; }
+.image-slot .slot-lock { position: absolute; bottom: 0.5rem; left: 0.5rem; right: 0.5rem; font-family: var(--font-mono); font-size: 0.65rem; color: var(--paper-050); background: rgba(20, 24, 28, 0.75); padding: 0.3rem 0.5rem; border-radius: 6px; text-align: center; }
+
+.feed-hero { text-align: left; max-width: 640px; margin-bottom: 3rem; }
+.feed-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1.5rem; }
+.story-card { background: var(--ink-800); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; }
+.story-card .story-image { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: var(--ink-700); }
+.story-card .story-body { padding: 1.25rem; display: flex; flex-direction: column; gap: 0.6rem; flex: 1; }
+.story-meta { display: flex; flex-wrap: wrap; gap: 0.5rem 0.9rem; font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); }
+.story-excerpt { font-size: 0.92rem; color: var(--paper-050); line-height: 1.55; flex: 1; }
+
+.companion-tally { display: flex; align-items: center; gap: 0.3rem; color: var(--sage-500); }
+.companion-tally .paw { width: 11px; height: 11px; opacity: 0.9; }
+.companion-tally .count-label { font-family: var(--font-mono); font-size: 0.72rem; color: var(--sage-500); margin-left: 0.15rem; }
+
+.empty-state { text-align: center; padding: 4rem 1rem; color: var(--text-muted); }
+.site-footer { text-align: center; padding: 2rem 1rem; font-size: 0.8rem; color: var(--text-muted); border-top: 1px solid var(--line); }
+
+.view { display: none; }
+.view.active { display: block; }
+
+@media (max-width: 560px) {
+  .image-slots { grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
+  .site-header { flex-direction: column; gap: 0.75rem; align-items: flex-start; }
+}
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <button class="brand" id="brand-link">Street<span class="brand-mark">Stories</span></button>
+  <nav class="nav-links">
+    <a href="#" id="nav-feed">Read the stories</a>
+    <a href="#" id="nav-dashboard" style="display:none">Your page</a>
+    <a href="#" id="nav-auth">Sign in</a>
+    <a href="#" id="nav-logout" style="display:none">Log out</a>
+  </nav>
+</header>
+
+<main class="page">
+
+  <!-- ================= LANDING / AUTH VIEW ================= -->
+  <section id="view-landing" class="view active">
+    <div class="page--narrow" style="margin:0 auto">
+      <p class="eyebrow">Members only</p>
+      <h1>Sign in to your account</h1>
+      <p>Accounts are by invitation — if your email has been approved, sign up below.</p>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="login">Log in</button>
+        <button class="tab" data-tab="signup">Sign up</button>
+        <button class="tab" data-tab="reset">Forgot password</button>
+      </div>
+
+      <form id="form-login" class="auth-form">
+        <label for="login-email">Email</label>
+        <input id="login-email" type="email" required autocomplete="email" />
+        <label for="login-password">Password</label>
+        <input id="login-password" type="password" required autocomplete="current-password" />
+        <div class="form-row"><button type="submit">Log in</button></div>
+        <div id="login-message" class="message" style="display:none"></div>
+      </form>
+
+      <form id="form-signup" class="auth-form" style="display:none">
+        <label for="signup-email">Email</label>
+        <input id="signup-email" type="email" required autocomplete="email" />
+        <label for="signup-password">Password</label>
+        <input id="signup-password" type="password" required minlength="6" autocomplete="new-password" />
+        <p class="field-hint">Must be an email the admin has already approved.</p>
+        <div class="form-row"><button type="submit">Create account</button></div>
+        <div id="signup-message" class="message" style="display:none"></div>
+      </form>
+
+      <form id="form-reset" class="auth-form" style="display:none">
+        <label for="reset-email">Email</label>
+        <input id="reset-email" type="email" required autocomplete="email" />
+        <div class="form-row"><button type="submit">Send reset link</button></div>
+        <div id="reset-message" class="message" style="display:none"></div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ================= DASHBOARD VIEW ================= -->
+  <section id="view-dashboard" class="view">
+    <p class="eyebrow">Your private dashboard</p>
+    <h1>Your page</h1>
+    <p>Fill this in whenever you're ready. Nothing here is visible to anyone else until the admin approves it.</p>
+
+    <section class="card" style="margin-top:2rem">
+      <h2>The basics</h2>
+      <form id="profile-form">
+        <label for="age">Age</label>
+        <input id="age" type="number" min="0" max="120" />
+        <label for="location">Location</label>
+        <input id="location" type="text" placeholder="City, state" />
+        <label for="months">How long have you been rebuilding, off the streets? (months)</label>
+        <input id="months" type="number" min="0" />
+        <label for="animals">How many animals do you have with you?</label>
+        <input id="animals" type="number" min="0" />
+        <div class="form-row"><button type="submit">Save details</button></div>
+        <div id="profile-message" class="message" style="display:none"></div>
+      </form>
+    </section>
+
+    <section class="card" style="margin-top:1.5rem">
+      <h2>Your story <span id="story-status-badge"></span></h2>
+      <p>Up to 500 words. Once submitted, it goes to the admin for approval before it's visible on the public feed.</p>
+      <form id="story-form">
+        <textarea id="story-text" maxlength="6000" placeholder="Tell your story..."></textarea>
+        <div class="field-hint" id="word-count">0 / 500 words</div>
+        <div class="form-row"><button type="submit">Submit for approval</button></div>
+        <div id="story-message" class="message" style="display:none"></div>
+      </form>
+    </section>
+
+    <section class="card" style="margin-top:1.5rem">
+      <h2>Your photos</h2>
+      <p>You get 3 photos, total, for as long as you're a member. Once uploaded, a photo can't be replaced for 30 days, and every photo needs admin approval before it appears publicly.</p>
+      <div class="image-slots" id="image-slots"></div>
+      <input type="file" id="image-input" accept="image/*" style="display:none" />
+      <div id="image-message" class="message" style="display:none"></div>
+    </section>
+  </section>
+
+  <!-- ================= PUBLIC FEED VIEW ================= -->
+  <section id="view-feed" class="view">
+    <div class="feed-hero">
+      <p class="eyebrow">Stories</p>
+      <h1>Told in their own words</h1>
+      <p>Each person here chose what to share. Every story and photo was reviewed before it appeared.</p>
+    </div>
+    <div id="feed-grid" class="feed-grid"></div>
+    <div id="feed-empty" class="empty-state" style="display:none">No stories yet — check back soon.</div>
+  </section>
+
+</main>
+
+<footer class="site-footer">Street Stories</footer>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  sendPasswordResetEmail, onAuthStateChanged, signOut, deleteUser,
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, serverTimestamp,
+  collection, getDocs, query, where, Timestamp,
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+
+// -----------------------------------------------------------------------
+// Replace with YOUR Firebase project's web app config.
+// Firebase console → Project settings → General → "Your apps" → Web app.
+// These values are safe to expose publicly — access control lives in
+// Firestore/Storage rules and Cloud Functions, not in hiding this object.
+// -----------------------------------------------------------------------
+const firebaseConfig = {
+  apiKey: "AIzaSyAFt0qFeP0sdcPLjwjqES76ONx7ixAjHGo",
+  authDomain: "home-app-4bcf8.firebaseapp.com",
+  projectId: "home-app-4bcf8",
+  storageBucket: "home-app-4bcf8.firebasestorage.app",
+  messagingSenderId: "378492724311",
+  appId: "1:378492724311:web:7cf05a81a52c0e84916f12",
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const storage = getStorage(app);
+
+const MAX_IMAGES = 3;
+const LOCK_DAYS = 30;
+let currentUid = null;
+let unsubscribeSnapshot = null;
+
+// ============================= VIEW ROUTER ==============================
+function showView(name) {
+  document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
+  document.getElementById(`view-${name}`).classList.add("active");
+  if (name === "feed") loadFeed();
+}
+
+document.getElementById("brand-link").addEventListener("click", () => showView(auth.currentUser ? "dashboard" : "landing"));
+document.getElementById("nav-feed").addEventListener("click", (e) => { e.preventDefault(); showView("feed"); });
+document.getElementById("nav-dashboard").addEventListener("click", (e) => { e.preventDefault(); showView("dashboard"); });
+document.getElementById("nav-auth").addEventListener("click", (e) => { e.preventDefault(); showView("landing"); });
+document.getElementById("nav-logout").addEventListener("click", async (e) => {
+  e.preventDefault();
+  await signOut(auth);
+  showView("landing");
+});
+
+onAuthStateChanged(auth, (user) => {
+  document.getElementById("nav-dashboard").style.display = user ? "inline" : "none";
+  document.getElementById("nav-logout").style.display = user ? "inline" : "none";
+  document.getElementById("nav-auth").style.display = user ? "none" : "inline";
+
+  if (user) {
+    currentUid = user.uid;
+    watchUserDoc(user.uid);
+    showView("dashboard");
+  } else {
+    currentUid = null;
+    if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
+    showView("landing");
+  }
+});
+
+function showMessage(el, text, type) {
+  el.textContent = text;
+  el.className = `message ${type}`;
+  el.style.display = "block";
+}
+
+// ============================= AUTH TABS ================================
+document.querySelectorAll(".tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+    document.querySelectorAll(".auth-form").forEach((f) => (f.style.display = "none"));
+    tab.classList.add("active");
+    document.getElementById(`form-${tab.dataset.tab}`).style.display = "block";
+  });
+});
+
+function friendlyAuthError(err) {
+  const code = err.code || "";
+  if (code.includes("email-already-in-use")) return "An account with that email already exists — try logging in instead.";
+  if (code.includes("weak-password")) return "Please choose a password with at least 6 characters.";
+  if (code.includes("invalid-email")) return "That doesn't look like a valid email address.";
+  if (code.includes("user-not-found") || code.includes("wrong-password") || code.includes("invalid-credential")) return "Email or password is incorrect.";
+  if (code.includes("permission-denied") || (err.message || "").includes("hasn't been approved")) return "This email hasn't been approved for an account yet. Please contact the site admin.";
+  return err.message || "Something went wrong. Please try again.";
+}
+
+document.getElementById("form-signup").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = document.getElementById("signup-email").value.trim();
+  const password = document.getElementById("signup-password").value;
+  const msg = document.getElementById("signup-message");
+  let cred;
+  try {
+    cred = await createUserWithEmailAndPassword(auth, email, password);
+    await setDoc(doc(db, "users", cred.user.uid), {
+      email: email.toLowerCase(),
+      createdAt: serverTimestamp(),
+      profile: { age: null, location: "", monthsRebuilding: null, numAnimals: 0 },
+      storyStatus: "draft",
+      images: [],
+    });
+  } catch (err) {
+    if (err.code === "permission-denied" && cred) {
+      // Email wasn't on the allowlist — don't leave an orphaned account.
+      await deleteUser(cred.user).catch(() => {});
+      await signOut(auth).catch(() => {});
+      showMessage(msg, "This email hasn't been approved for an account yet. Please contact the site admin.", "error");
+    } else {
+      showMessage(msg, friendlyAuthError(err), "error");
+    }
+  }
+});
+
+document.getElementById("form-login").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = document.getElementById("login-email").value.trim();
+  const password = document.getElementById("login-password").value;
+  const msg = document.getElementById("login-message");
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch (err) {
+    showMessage(msg, friendlyAuthError(err), "error");
+  }
+});
+
+document.getElementById("form-reset").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = document.getElementById("reset-email").value.trim();
+  const msg = document.getElementById("reset-message");
+  try {
+    await sendPasswordResetEmail(auth, email);
+    showMessage(msg, "Check your email for a reset link.", "success");
+  } catch (err) {
+    showMessage(msg, friendlyAuthError(err), "error");
+  }
+});
+
+// ============================= DASHBOARD ================================
+function watchUserDoc(uid) {
+  if (unsubscribeSnapshot) unsubscribeSnapshot();
+  unsubscribeSnapshot = onSnapshot(doc(db, "users", uid), (snap) => {
+    if (!snap.exists()) return;
+    renderDashboard(snap.data());
+  });
+}
+
+function renderDashboard(data) {
+  const profile = data.profile || {};
+  document.getElementById("age").value = profile.age ?? "";
+  document.getElementById("location").value = profile.location ?? "";
+  document.getElementById("months").value = profile.monthsRebuilding ?? "";
+  document.getElementById("animals").value = profile.numAnimals ?? 0;
+
+  const badge = document.getElementById("story-status-badge");
+  const s = data.storyStatus || "draft";
+  badge.innerHTML = `<span class="badge badge--${s}">${s}</span>`;
+
+  const storyTextEl = document.getElementById("story-text");
+  if (document.activeElement !== storyTextEl) {
+    storyTextEl.value = data.storyText || "";
+    updateWordCount();
+  }
+
+  renderImageSlots(data.images || []);
+  currentImages = data.images || [];
+}
+
+function numOrNull(v) {
+  if (v === "" || v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isNaN(n) ? null : n;
+}
+
+document.getElementById("profile-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const msg = document.getElementById("profile-message");
+  const profile = {
+    age: numOrNull(document.getElementById("age").value),
+    location: document.getElementById("location").value.trim(),
+    monthsRebuilding: numOrNull(document.getElementById("months").value),
+    numAnimals: numOrNull(document.getElementById("animals").value) ?? 0,
+  };
+  try {
+    await updateDoc(doc(db, "users", currentUid), { profile });
+    showMessage(msg, "Saved.", "success");
+  } catch (err) {
+    showMessage(msg, err.message, "error");
+  }
+});
+
+const storyText = document.getElementById("story-text");
+storyText.addEventListener("input", updateWordCount);
+function updateWordCount() {
+  const words = storyText.value.trim().split(/\s+/).filter(Boolean).length;
+  const hint = document.getElementById("word-count");
+  hint.textContent = `${words} / 500 words`;
+  hint.classList.toggle("over-limit", words > 500);
+}
+
+document.getElementById("story-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const msg = document.getElementById("story-message");
+  const text = storyText.value.trim();
+  const words = text.trim().split(/\s+/).filter(Boolean).length;
+  if (words > 500) {
+    showMessage(msg, `Please trim your story to 500 words or fewer (currently ${words}).`, "error");
+    return;
+  }
+  try {
+    await updateDoc(doc(db, "users", currentUid), {
+      storyText: text,
+      storyWordCount: words,
+      storyStatus: "pending",
+    });
+    showMessage(msg, "Submitted — waiting on admin approval.", "success");
+  } catch (err) {
+    showMessage(msg, err.message, "error");
+  }
+});
+
+function imageAgeDays(uploadedAt) {
+  const ms = uploadedAt.seconds ? uploadedAt.seconds * 1000 : uploadedAt._seconds * 1000;
+  return (Date.now() - ms) / (1000 * 60 * 60 * 24);
+}
+
+function renderImageSlots(images) {
+  const container = document.getElementById("image-slots");
+  container.innerHTML = "";
+  for (let i = 0; i < MAX_IMAGES; i++) {
+    const img = images[i];
+    const slot = document.createElement("div");
+    slot.className = "image-slot";
+    if (img) {
+      const ageDays = imageAgeDays(img.uploadedAt);
+      const locked = ageDays < LOCK_DAYS;
+      slot.innerHTML = `
+        <img src="${img.url}" alt="Uploaded photo ${i + 1}" />
+        <span class="badge badge--${img.status} slot-badge">${img.status}</span>
+        ${locked ? `<span class="slot-lock">Locked ${Math.ceil(LOCK_DAYS - ageDays)}d more</span>`
+                 : `<span class="slot-lock">Eligible for replacement — contact the admin</span>`}
+      `;
+    } else {
+      slot.innerHTML = `<span class="slot-label">+ Add photo ${i + 1}</span>`;
+      slot.style.cursor = "pointer";
+      slot.addEventListener("click", () => startUpload());
+    }
+    container.appendChild(slot);
+  }
+}
+
+let currentImages = [];
+
+const imageInput = document.getElementById("image-input");
+function startUpload() {
+  imageInput.value = "";
+  imageInput.click();
+}
+
+imageInput.addEventListener("change", async () => {
+  const file = imageInput.files[0];
+  if (!file) return;
+  const msg = document.getElementById("image-message");
+
+  if (currentImages.length >= MAX_IMAGES) {
+    showMessage(msg, "You've already used all 3 photo slots.", "error");
+    return;
+  }
+
+  try {
+    const imageId = crypto.randomUUID();
+    const path = `users/${currentUid}/images/${imageId}-${file.name}`;
+    const fileRef = ref(storage, path);
+    await uploadBytes(fileRef, file);
+    const url = await getDownloadURL(fileRef);
+
+    const newImage = {
+      id: imageId,
+      storagePath: path,
+      url,
+      uploadedAt: Timestamp.now(),
+      status: "pending",
+    };
+
+    await updateDoc(doc(db, "users", currentUid), {
+      images: [...currentImages, newImage],
+    });
+    showMessage(msg, "Uploaded — waiting on admin approval.", "success");
+  } catch (err) {
+    showMessage(msg, err.message, "error");
+  }
+});
+
+// ============================= PUBLIC FEED ===============================
+const PAW_SVG = `<svg class="paw" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="6" cy="8" r="2.4"/><circle cx="12" cy="5.5" r="2.4"/><circle cx="18" cy="8" r="2.4"/>
+  <path d="M12 11c-4 0-7 3-7 6a3 3 0 0 0 3 3c1.4 0 2-.7 4-.7s2.6.7 4 .7a3 3 0 0 0 3-3c0-3-3-6-7-6z"/>
+</svg>`;
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function renderCard(data) {
+  const profile = data.profile || {};
+  const images = data.images || [];
+  const words = (data.story || "").split(/\s+/).filter(Boolean);
+  const excerpt = words.slice(0, 60).join(" ");
+  const isTruncated = words.length > 60;
+
+  const card = document.createElement("article");
+  card.className = "story-card";
+  const imageHtml = images[0] ? `<img class="story-image" src="${images[0].url}" alt="Photo" />` : "";
+  const animalsHtml = profile.numAnimals > 0
+    ? `<div class="companion-tally">${PAW_SVG.repeat(Math.min(profile.numAnimals, 5))}<span class="count-label">${profile.numAnimals} companion${profile.numAnimals === 1 ? "" : "s"}</span></div>`
+    : "";
+
+  card.innerHTML = `
+    ${imageHtml}
+    <div class="story-body">
+      <div class="story-meta">
+        ${profile.location ? `<span>${escapeHtml(profile.location)}</span>` : ""}
+        ${profile.age ? `<span>Age ${profile.age}</span>` : ""}
+        ${profile.monthsRebuilding ? `<span>${profile.monthsRebuilding} mo. rebuilding</span>` : ""}
+      </div>
+      <p class="story-excerpt">${escapeHtml(excerpt)}${isTruncated ? "…" : ""}</p>
+      ${animalsHtml}
+    </div>
+  `;
+  return card;
+}
+
+let feedLoaded = false;
+async function loadFeed() {
+  const grid = document.getElementById("feed-grid");
+  const empty = document.getElementById("feed-empty");
+  grid.innerHTML = "";
+  empty.style.display = "none";
+
+  const q = query(collection(db, "publicProfiles"), where("storyApproved", "==", true));
+  const snap = await getDocs(q);
+  if (snap.empty) {
+    empty.style.display = "block";
+    return;
+  }
+  snap.forEach((docSnap) => grid.appendChild(renderCard(docSnap.data())));
+}
+</script>
+</body>
+</html>
