@@ -88,10 +88,44 @@ button.secondary:hover { background: var(--ink-700); }
 .image-slot .slot-badge { position: absolute; top: 0.5rem; left: 0.5rem; }
 .image-slot .slot-lock { position: absolute; bottom: 0.5rem; left: 0.5rem; right: 0.5rem; font-family: var(--font-mono); font-size: 0.65rem; color: var(--paper-050); background: rgba(20, 24, 28, 0.75); padding: 0.3rem 0.5rem; border-radius: 6px; text-align: center; }
 
-.feed-hero { text-align: left; max-width: 640px; margin-bottom: 3rem; }
+.feed-hero { text-align: center; max-width: 620px; margin: 0 auto 3.5rem; }
+.feed-hero .eyebrow { justify-content: center; display: flex; }
+.feed-hero p { max-width: 480px; margin-left: auto; margin-right: auto; }
+.feed-hero h1 { margin-bottom: 0.5rem; }
 .feed-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1.5rem; }
 .story-card { background: var(--ink-800); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; }
 .story-card .story-image { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: var(--ink-700); }
+
+.story-images { position: relative; }
+.story-images-scroll {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.story-images-scroll::-webkit-scrollbar { display: none; }
+.story-images-scroll img {
+  flex: 0 0 100%;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: var(--ink-700);
+  scroll-snap-align: start;
+}
+.story-images-hint {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+  color: var(--paper-050);
+  background: rgba(20, 24, 28, 0.6);
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  pointer-events: none;
+}
 .story-card .story-body { padding: 1.25rem; display: flex; flex-direction: column; gap: 0.6rem; flex: 1; }
 .story-meta { display: flex; flex-wrap: wrap; gap: 0.5rem 0.9rem; font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); }
 .story-excerpt { font-size: 0.92rem; color: var(--paper-050); line-height: 1.55; flex: 1; }
@@ -545,7 +579,14 @@ function renderCard(data) {
 
   const card = document.createElement("article");
   card.className = "story-card";
-  const imageHtml = images[0] ? `<img class="story-image" src="${images[0].url}" alt="Photo" />` : "";
+  const imageHtml = images.length
+    ? `<div class="story-images">
+         <div class="story-images-scroll">
+           ${images.map((img) => `<img src="${img.url}" alt="Photo" loading="lazy" />`).join("")}
+         </div>
+         ${images.length > 1 ? `<span class="story-images-hint">1 / ${images.length} · swipe →</span>` : ""}
+       </div>`
+    : "";
   const animalsHtml = profile.numAnimals > 0
     ? `<div class="companion-tally">${PAW_SVG.repeat(Math.min(profile.numAnimals, 5))}<span class="count-label">${profile.numAnimals} companion${profile.numAnimals === 1 ? "" : "s"}</span></div>`
     : "";
@@ -562,6 +603,16 @@ function renderCard(data) {
       ${animalsHtml}
     </div>
   `;
+
+  if (images.length > 1) {
+    const scroller = card.querySelector(".story-images-scroll");
+    const hint = card.querySelector(".story-images-hint");
+    scroller.addEventListener("scroll", () => {
+      const index = Math.round(scroller.scrollLeft / scroller.clientWidth) + 1;
+      hint.textContent = `${index} / ${images.length} · swipe →`;
+    });
+  }
+
   return card;
 }
 
