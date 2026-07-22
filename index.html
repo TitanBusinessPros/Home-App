@@ -292,7 +292,7 @@ button.secondary:hover { background: var(--ink-700); }
 
     <section class="card" style="margin-top:1.5rem">
       <h2>Your story <span id="story-status-badge"></span></h2>
-      <p>Up to 500 words. Once submitted, it goes to the admin for approval before it's visible on the public feed. No profanity or negative words.</p>
+      <p>Up to 500 words. Once submitted, it goes to the admin for approval before it's visible on the public feed. No profanity or negative words. For everyone's safety, do not ask for money or include phone numbers, email addresses, or links — this is to protect our members from scammers.</p>
       <form id="story-form">
         <textarea id="story-text" maxlength="6000" placeholder="Tell your story..."></textarea>
         <div class="field-hint" id="word-count">0 / 500 words</div>
@@ -487,8 +487,20 @@ document.getElementById("form-reset").addEventListener("submit", async (e) => {
 // ============================= DASHBOARD ================================
 function watchUserDoc(uid) {
   if (unsubscribeSnapshot) unsubscribeSnapshot();
-  unsubscribeSnapshot = onSnapshot(doc(db, "users", uid), (snap) => {
-    if (!snap.exists()) return;
+  unsubscribeSnapshot = onSnapshot(doc(db, "users", uid), async (snap) => {
+    if (!snap.exists()) {
+      // Doc is missing (e.g. deleted while testing) — recreate a clean
+      // default so the dashboard always has something to show.
+      await setDoc(doc(db, "users", uid), {
+        createdAt: serverTimestamp(),
+        profile: { age: null, location: "", monthsRebuilding: null, numAnimals: 0 },
+        storyText: "",
+        storyWordCount: 0,
+        approved: false,
+        images: [],
+      }).catch(() => {});
+      return;
+    }
     renderDashboard(snap.data());
   });
 }
@@ -546,6 +558,13 @@ function updateWordCount() {
   hint.classList.toggle("over-limit", words > 500);
 }
 
+function containsContactInfo(text) {
+  const emailPattern = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/;
+  const urlPattern = /\b((https?:\/\/)|(www\.))\S+/i;
+  const phonePattern = /(\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/;
+  return emailPattern.test(text) || urlPattern.test(text) || phonePattern.test(text);
+}
+
 document.getElementById("story-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const msg = document.getElementById("story-message");
@@ -553,6 +572,10 @@ document.getElementById("story-form").addEventListener("submit", async (e) => {
   const words = text.trim().split(/\s+/).filter(Boolean).length;
   if (words > 500) {
     showMessage(msg, `Please trim your story to 500 words or fewer (currently ${words}).`, "error");
+    return;
+  }
+  if (containsContactInfo(text)) {
+    showMessage(msg, "Your story appears to contain a phone number, email address, or link. For everyone's safety, please remove personal contact info or money requests before submitting.", "error");
     return;
   }
   try {
@@ -581,11 +604,26 @@ function renderImageSlots(images) {
     if (img) {
       const ageDays = imageAgeDays(img.uploadedAt);
       const locked = ageDays < LOCK_DAYS;
+      const imgId = `img-slot-${i}-${img.id}`;
       slot.innerHTML = `
-        <img src="${img.url}" alt="Uploaded photo ${i + 1}" />
+        <img id="${imgId}" src="${img.url}" alt="Uploaded photo ${i + 1}" />
         ${locked ? `<span class="slot-lock">Locked ${Math.ceil(LOCK_DAYS - ageDays)}d more</span>`
                  : `<span class="slot-lock">Eligible for replacement — contact the admin</span>`}
       `;
+      // If the file itself is gone (deleted in Storage but the Firestore
+      // record wasn't cleaned up to match), don't leave the slot stuck —
+      // clear the stale record automatically so it becomes uploadable again.
+      const imgEl = slot.querySelector(`#${CSS.escape(imgId)}`);
+      imgEl.addEventListener("error", async () => {
+        slot.innerHTML = `<span class="slot-label">Photo missing — click to re-add</span>`;
+        slot.style.cursor = "pointer";
+        slot.addEventListener("click", async () => {
+          await updateDoc(doc(db, "users", currentUid), {
+            images: currentImages.filter((entry) => entry.id !== img.id),
+          }).catch(() => {});
+          startUpload();
+        }, { once: true });
+      });
     } else {
       slot.innerHTML = `<span class="slot-label">+ Add photo ${i + 1}</span>`;
       slot.style.cursor = "pointer";
@@ -651,9 +689,7 @@ function escapeHtml(str) {
 function renderCard(data) {
   const profile = data.profile || {};
   const images = data.images || [];
-  const words = (data.storyText || "").split(/\s+/).filter(Boolean);
-  const excerpt = words.slice(0, 60).join(" ");
-  const isTruncated = words.length > 60;
+  const storyText = data.storyText || "";
 
   const card = document.createElement("article");
   card.className = "story-card";
@@ -681,7 +717,7 @@ function renderCard(data) {
         ${profile.age ? `<span>Age ${profile.age}</span>` : ""}
         ${profile.monthsRebuilding ? `<span>${profile.monthsRebuilding} mo. homeless</span>` : ""}
       </div>
-      <p class="story-excerpt">${escapeHtml(excerpt)}${isTruncated ? "…" : ""}</p>
+      <p class="story-excerpt">${escapeHtml(storyText).replace(/\n/g, "<br>")}</p>
       ${animalsHtml}
     </div>
   `;
