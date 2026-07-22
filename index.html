@@ -329,10 +329,11 @@ document.getElementById("form-signup").addEventListener("submit", async (e) => {
   try {
     cred = await createUserWithEmailAndPassword(auth, email, password);
     await setDoc(doc(db, "users", cred.user.uid), {
-      email: email.toLowerCase(),
       createdAt: serverTimestamp(),
       profile: { age: null, location: "", monthsRebuilding: null, numAnimals: 0 },
-      storyStatus: "draft",
+      storyText: "",
+      storyWordCount: 0,
+      approved: false,
       images: [],
     });
   } catch (err) {
@@ -388,8 +389,8 @@ function renderDashboard(data) {
   document.getElementById("animals").value = profile.numAnimals ?? 0;
 
   const badge = document.getElementById("story-status-badge");
-  const s = data.storyStatus || "draft";
-  badge.innerHTML = `<span class="badge badge--${s}">${s}</span>`;
+  const s = data.approved ? "approved" : "pending";
+  badge.innerHTML = `<span class="badge badge--${s}">${s === "approved" ? "Live on public feed" : "Pending review"}</span>`;
 
   const storyTextEl = document.getElementById("story-text");
   if (document.activeElement !== storyTextEl) {
@@ -446,9 +447,8 @@ document.getElementById("story-form").addEventListener("submit", async (e) => {
     await updateDoc(doc(db, "users", currentUid), {
       storyText: text,
       storyWordCount: words,
-      storyStatus: "pending",
     });
-    showMessage(msg, "Submitted — waiting on admin approval.", "success");
+    showMessage(msg, "Saved — the admin will review your whole profile before it goes live.", "success");
   } catch (err) {
     showMessage(msg, err.message, "error");
   }
@@ -471,7 +471,6 @@ function renderImageSlots(images) {
       const locked = ageDays < LOCK_DAYS;
       slot.innerHTML = `
         <img src="${img.url}" alt="Uploaded photo ${i + 1}" />
-        <span class="badge badge--${img.status} slot-badge">${img.status}</span>
         ${locked ? `<span class="slot-lock">Locked ${Math.ceil(LOCK_DAYS - ageDays)}d more</span>`
                  : `<span class="slot-lock">Eligible for replacement — contact the admin</span>`}
       `;
@@ -514,7 +513,6 @@ imageInput.addEventListener("change", async () => {
       storagePath: path,
       url,
       uploadedAt: Timestamp.now(),
-      status: "pending",
     };
 
     await updateDoc(doc(db, "users", currentUid), {
@@ -541,7 +539,7 @@ function escapeHtml(str) {
 function renderCard(data) {
   const profile = data.profile || {};
   const images = data.images || [];
-  const words = (data.story || "").split(/\s+/).filter(Boolean);
+  const words = (data.storyText || "").split(/\s+/).filter(Boolean);
   const excerpt = words.slice(0, 60).join(" ");
   const isTruncated = words.length > 60;
 
@@ -574,7 +572,7 @@ async function loadFeed() {
   grid.innerHTML = "";
   empty.style.display = "none";
 
-  const q = query(collection(db, "publicProfiles"), where("storyApproved", "==", true));
+  const q = query(collection(db, "users"), where("approved", "==", true));
   const snap = await getDocs(q);
   if (snap.empty) {
     empty.style.display = "block";
