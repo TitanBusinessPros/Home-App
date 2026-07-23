@@ -309,7 +309,7 @@ button.secondary:hover { background: var(--ink-700); }
 
     <section class="card" style="margin-top:1.5rem">
       <h2>Your story <span id="story-status-badge"></span></h2>
-      <p>Up to 500 words. Once submitted, it goes to the admin for approval before it's visible on the public feed. No profanity or negative words. For everyone's safety, do not ask for money or include phone numbers, email addresses, or links — this is to protect our members from scammers.</p>
+      <p>Up to 500 words. Once submitted, it goes to the admin for approval before it's visible on the public feed. No profanity or negative words. For everyone's safety, do not ask for money or include phone numbers, email addresses, or links — this is to protect our members from scammers. Once your profile has been approved, any edit takes it off the public feed until the admin reviews it again, and you can only make one edit every 30 days.</p>
       <form id="story-form">
         <textarea id="story-text" maxlength="6000" placeholder="Tell your story..."></textarea>
         <div class="field-hint" id="word-count">0 / 500 words</div>
@@ -476,6 +476,8 @@ document.getElementById("form-signup").addEventListener("submit", async (e) => {
       storyText: "",
       storyWordCount: 0,
       approved: false,
+      everApproved: false,
+      lastEditedAt: serverTimestamp(),
       images: [],
     });
   } catch (err) {
@@ -527,6 +529,8 @@ function watchUserDoc(uid) {
         storyText: "",
         storyWordCount: 0,
         approved: false,
+        everApproved: false,
+        lastEditedAt: serverTimestamp(),
         images: [],
       }).catch(() => {});
       return;
@@ -535,7 +539,26 @@ function watchUserDoc(uid) {
   });
 }
 
+let currentUserData = {};
+
+function editLockInfo(data) {
+  if (!data.everApproved) return { locked: false };
+  const editedMs = data.lastEditedAt
+    ? (data.lastEditedAt.seconds ? data.lastEditedAt.seconds * 1000 : data.lastEditedAt._seconds * 1000)
+    : 0;
+  const daysSince = (Date.now() - editedMs) / (1000 * 60 * 60 * 24);
+  const daysLeft = Math.ceil(30 - daysSince);
+  return daysLeft > 0 ? { locked: true, daysLeft } : { locked: false };
+}
+
+async function flagForReview() {
+  await setDoc(doc(db, "reviewQueue", currentUid), {
+    requestedAt: serverTimestamp(),
+  }).catch(() => {});
+}
+
 function renderDashboard(data) {
+  currentUserData = data;
   const profile = data.profile || {};
   document.getElementById("age").value = profile.age ?? "";
   document.getElementById("location").value = profile.location ?? "";
@@ -543,8 +566,16 @@ function renderDashboard(data) {
   document.getElementById("animals").value = profile.numAnimals ?? 0;
 
   const badge = document.getElementById("story-status-badge");
-  const s = data.approved ? "approved" : "pending";
-  badge.innerHTML = `<span class="badge badge--${s}">${s === "approved" ? "Live on public feed" : "Pending review"}</span>`;
+  const lock = editLockInfo(data);
+  if (data.approved) {
+    badge.innerHTML = lock.locked
+      ? `<span class="badge badge--approved">Live · editable again in ${lock.daysLeft}d</span>`
+      : `<span class="badge badge--approved">Live on public feed</span>`;
+  } else if (lock.locked) {
+    badge.innerHTML = `<span class="badge badge--pending">Pending review · editable again in ${lock.daysLeft}d</span>`;
+  } else {
+    badge.innerHTML = `<span class="badge badge--pending">Pending review</span>`;
+  }
 
   const storyTextEl = document.getElementById("story-text");
   if (document.activeElement !== storyTextEl) {
@@ -565,15 +596,28 @@ function numOrNull(v) {
 document.getElementById("profile-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const msg = document.getElementById("profile-message");
+
+  const lock = editLockInfo(currentUserData);
+  if (lock.locked) {
+    showMessage(msg, `You can edit your profile again in ${lock.daysLeft} day(s).`, "error");
+    return;
+  }
+
   const profile = {
     age: numOrNull(document.getElementById("age").value),
     location: document.getElementById("location").value.trim(),
     monthsRebuilding: numOrNull(document.getElementById("months").value),
     numAnimals: numOrNull(document.getElementById("animals").value) ?? 0,
   };
+  const update = { profile, lastEditedAt: serverTimestamp() };
+  if (currentUserData.everApproved) update.approved = false;
+
   try {
-    await updateDoc(doc(db, "users", currentUid), { profile });
-    showMessage(msg, "Saved.", "success");
+    await updateDoc(doc(db, "users", currentUid), update);
+    await flagForReview();
+    showMessage(msg, currentUserData.everApproved
+      ? "Saved — this will need admin review again before it's live."
+      : "Saved.", "success");
   } catch (err) {
     showMessage(msg, err.message, "error");
   }
@@ -598,6 +642,13 @@ function containsContactInfo(text) {
 document.getElementById("story-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const msg = document.getElementById("story-message");
+
+  const lock = editLockInfo(currentUserData);
+  if (lock.locked) {
+    showMessage(msg, `You can edit your story again in ${lock.daysLeft} day(s).`, "error");
+    return;
+  }
+
   const text = storyText.value.trim();
   const words = text.trim().split(/\s+/).filter(Boolean).length;
   if (words > 500) {
@@ -608,11 +659,12 @@ document.getElementById("story-form").addEventListener("submit", async (e) => {
     showMessage(msg, "Your story appears to contain a phone number, email address, or link. For everyone's safety, please remove personal contact info or money requests before submitting.", "error");
     return;
   }
+  const update = { storyText: text, storyWordCount: words, lastEditedAt: serverTimestamp() };
+  if (currentUserData.everApproved) update.approved = false;
+
   try {
-    await updateDoc(doc(db, "users", currentUid), {
-      storyText: text,
-      storyWordCount: words,
-    });
+    await updateDoc(doc(db, "users", currentUid), update);
+    await flagForReview();
     showMessage(msg, "Saved — the admin will review your whole profile before it goes live.", "success");
   } catch (err) {
     showMessage(msg, err.message, "error");
@@ -637,9 +689,12 @@ function renderImageSlots(images) {
         slot.innerHTML = `<span class="slot-label">Photo missing — click to re-add</span>`;
         slot.style.cursor = "pointer";
         slot.addEventListener("click", async () => {
-          await updateDoc(doc(db, "users", currentUid), {
+          const update = {
             images: currentImages.filter((entry) => entry.id !== img.id),
-          }).catch(() => {});
+            lastEditedAt: serverTimestamp(),
+          };
+          if (currentUserData.everApproved) update.approved = false;
+          await updateDoc(doc(db, "users", currentUid), update).catch(() => {});
           startUpload();
         }, { once: true });
       });
@@ -670,6 +725,12 @@ imageInput.addEventListener("change", async () => {
     return;
   }
 
+  const lock = editLockInfo(currentUserData);
+  if (lock.locked) {
+    showMessage(msg, `You can add photos again in ${lock.daysLeft} day(s).`, "error");
+    return;
+  }
+
   try {
     const imageId = crypto.randomUUID();
     const path = `users/${currentUid}/images/${imageId}-${file.name}`;
@@ -684,9 +745,11 @@ imageInput.addEventListener("change", async () => {
       uploadedAt: Timestamp.now(),
     };
 
-    await updateDoc(doc(db, "users", currentUid), {
-      images: [...currentImages, newImage],
-    });
+    const update = { images: [...currentImages, newImage], lastEditedAt: serverTimestamp() };
+    if (currentUserData.everApproved) update.approved = false;
+
+    await updateDoc(doc(db, "users", currentUid), update);
+    await flagForReview();
     showMessage(msg, "Uploaded — waiting on admin approval.", "success");
   } catch (err) {
     showMessage(msg, err.message, "error");
