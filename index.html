@@ -205,6 +205,13 @@ button.secondary:hover { background: var(--ink-700); }
 .companion-tally .count-label { font-family: var(--font-mono); font-size: 0.72rem; color: var(--sage-500); margin-left: 0.15rem; }
 
 .empty-state { text-align: center; padding: 4rem 1rem; color: var(--text-muted); }
+
+.admin-card { background: var(--ink-800); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.5rem; margin-top: 1.5rem; }
+.admin-card .admin-meta { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.75rem; }
+.admin-card .admin-story { white-space: pre-wrap; font-size: 0.92rem; color: var(--paper-050); line-height: 1.55; margin: 0.75rem 0; }
+.admin-card .admin-images { display: flex; gap: 0.75rem; flex-wrap: wrap; margin: 0.75rem 0; }
+.admin-card .admin-images img { width: 120px; height: 120px; object-fit: cover; border-radius: var(--radius-sm); background: var(--ink-700); }
+.admin-card .admin-actions { display: flex; gap: 0.75rem; margin-top: 1rem; }
 .site-footer {
   text-align: center;
   padding: 2.5rem 1.5rem 2rem;
@@ -251,6 +258,7 @@ button.secondary:hover { background: var(--ink-700); }
   <nav class="nav-links">
     <a href="#" id="nav-feed">Read the stories</a>
     <a href="#" id="nav-dashboard" style="display:none">Your page</a>
+    <a href="#" id="nav-admin" style="display:none">Admin</a>
     <a href="#" id="nav-auth">Sign in</a>
     <a href="#" id="nav-logout" style="display:none">Log out</a>
   </nav>
@@ -354,6 +362,15 @@ button.secondary:hover { background: var(--ink-700); }
     </section>
   </section>
 
+  <!-- ================= ADMIN REVIEW VIEW ================= -->
+  <section id="view-admin" class="view">
+    <p class="eyebrow">Admin</p>
+    <h1>Review queue</h1>
+    <p>Everyone here has submitted something new or edited an already-live profile. Review each, then Approve or Reject.</p>
+    <div id="admin-queue"></div>
+    <div id="admin-empty" class="empty-state" style="display:none">Nothing waiting for review right now.</div>
+  </section>
+
   <!-- ================= PUBLIC FEED VIEW ================= -->
   <section id="view-feed" class="view">
     <div class="feed-hero">
@@ -389,7 +406,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp,
-  collection, getDocs, query, where, Timestamp,
+  collection, getDocs, query, where, orderBy, Timestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
@@ -422,11 +439,13 @@ function showView(name) {
   document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
   document.getElementById(`view-${name}`).classList.add("active");
   if (name === "feed") loadFeed();
+  if (name === "admin") loadAdminQueue();
 }
 
 document.getElementById("brand-link").addEventListener("click", () => showView(auth.currentUser ? "dashboard" : "landing"));
 document.getElementById("nav-feed").addEventListener("click", (e) => { e.preventDefault(); showView("feed"); });
 document.getElementById("nav-dashboard").addEventListener("click", (e) => { e.preventDefault(); showView("dashboard"); });
+document.getElementById("nav-admin").addEventListener("click", (e) => { e.preventDefault(); showView("admin"); });
 document.getElementById("nav-auth").addEventListener("click", (e) => { e.preventDefault(); showView("landing"); });
 document.getElementById("nav-logout").addEventListener("click", async (e) => {
   e.preventDefault();
@@ -434,7 +453,9 @@ document.getElementById("nav-logout").addEventListener("click", async (e) => {
   showView("landing");
 });
 
-onAuthStateChanged(auth, (user) => {
+let isAdminUser = false;
+
+onAuthStateChanged(auth, async (user) => {
   document.getElementById("nav-dashboard").style.display = user ? "inline" : "none";
   document.getElementById("nav-logout").style.display = user ? "inline" : "none";
   document.getElementById("nav-auth").style.display = user ? "none" : "inline";
@@ -442,9 +463,19 @@ onAuthStateChanged(auth, (user) => {
   if (user) {
     currentUid = user.uid;
     watchUserDoc(user.uid);
+
+    // Check admin status by trying to read our own admins/{uid} doc — the
+    // rules only allow reading your own, so this can't be used to snoop
+    // on who else is an admin.
+    const adminSnap = await getDoc(doc(db, "admins", user.uid)).catch(() => null);
+    isAdminUser = !!(adminSnap && adminSnap.exists());
+    document.getElementById("nav-admin").style.display = isAdminUser ? "inline" : "none";
+
     showView("dashboard");
   } else {
     currentUid = null;
+    isAdminUser = false;
+    document.getElementById("nav-admin").style.display = "none";
     if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
     showView("landing");
   }
@@ -895,6 +926,83 @@ async function loadFeed() {
     return;
   }
   snap.forEach((docSnap) => grid.appendChild(renderCard(docSnap.data())));
+}
+
+// ============================= ADMIN REVIEW ==============================
+async function loadAdminQueue() {
+  const container = document.getElementById("admin-queue");
+  const empty = document.getElementById("admin-empty");
+  container.innerHTML = "";
+  empty.style.display = "none";
+
+  const q = query(collection(db, "reviewQueue"), orderBy("requestedAt", "asc"));
+  const queueSnap = await getDocs(q).catch((err) => {
+    container.innerHTML = `<div class="message error">Couldn't load the queue: ${err.message}</div>`;
+    return null;
+  });
+  if (!queueSnap) return;
+
+  if (queueSnap.empty) {
+    empty.style.display = "block";
+    return;
+  }
+
+  for (const queueDoc of queueSnap.docs) {
+    const uid = queueDoc.id;
+    const userSnap = await getDoc(doc(db, "users", uid)).catch(() => null);
+    if (!userSnap || !userSnap.exists()) continue;
+    container.appendChild(renderAdminCard(uid, userSnap.data()));
+  }
+}
+
+function renderAdminCard(uid, data) {
+  const profile = data.profile || {};
+  const images = data.images || [];
+  const card = document.createElement("div");
+  card.className = "admin-card";
+
+  const imagesHtml = images.length
+    ? `<div class="admin-images">${images.map((img) => `<img src="${img.url}" alt="Photo" />`).join("")}</div>`
+    : `<p class="field-hint">No photos uploaded yet.</p>`;
+
+  card.innerHTML = `
+    <div class="admin-meta">
+      ${data.everApproved ? "Re-review after edit" : "First-time submission"}
+      &nbsp;·&nbsp; Age ${profile.age ?? "—"} &nbsp;·&nbsp; ${escapeHtml(profile.location || "—")}
+      &nbsp;·&nbsp; ${profile.monthsRebuilding ?? "—"} mo. homeless
+      &nbsp;·&nbsp; ${profile.numAnimals ?? 0} animal(s)
+    </div>
+    ${imagesHtml}
+    <p class="admin-story">${escapeHtml(data.storyText || "(no story written yet)")}</p>
+    <div class="admin-actions">
+      <button type="button" data-action="approve">Approve</button>
+      <button type="button" class="secondary" data-action="reject">Reject</button>
+    </div>
+    <div class="message" style="display:none"></div>
+  `;
+
+  const msg = card.querySelector(".message");
+
+  card.querySelector('[data-action="approve"]').addEventListener("click", async () => {
+    try {
+      await updateDoc(doc(db, "users", uid), { approved: true, everApproved: true });
+      await deleteDoc(doc(db, "reviewQueue", uid));
+      card.remove();
+    } catch (err) {
+      showMessage(msg, err.message, "error");
+    }
+  });
+
+  card.querySelector('[data-action="reject"]').addEventListener("click", async () => {
+    try {
+      await deleteDoc(doc(db, "reviewQueue", uid));
+      card.remove();
+    } catch (err) {
+      showMessage(msg, err.message, "error");
+    }
+  });
+
+  return card;
 }
 </script>
 </body>
