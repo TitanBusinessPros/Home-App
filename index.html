@@ -320,10 +320,23 @@ button.secondary:hover { background: var(--ink-700); }
 
     <section class="card" style="margin-top:1.5rem">
       <h2>Your photos</h2>
-      <p>You get 3 photos total. Once uploaded, a photo can't be replaced without an admin and every photo needs admin approval before it appears publicly. No nudity or images showing sensative body parts will be accepted!</p>
+      <p>You get 3 photos total, and they're permanent once uploaded — choose carefully. Every photo needs admin approval before it appears publicly. No nudity or images showing sensative body parts will be accepted!</p>
       <div class="image-slots" id="image-slots"></div>
       <input type="file" id="image-input" accept="image/*" style="display:none" />
       <div id="image-message" class="message" style="display:none"></div>
+    </section>
+
+    <section class="card" style="margin-top:1.5rem; border-color:#d97757;">
+      <h2>Delete my account</h2>
+      <p>This permanently removes your profile, story, and photos from our system — nothing is kept. This cannot be undone. Enter your password to confirm.</p>
+      <form id="delete-account-form">
+        <label for="delete-password">Password</label>
+        <input id="delete-password" type="password" required autocomplete="current-password" />
+        <div class="form-row">
+          <button type="submit" style="background:#d97757;">Permanently delete my account</button>
+        </div>
+        <div id="delete-account-message" class="message" style="display:none"></div>
+      </form>
     </section>
   </section>
 
@@ -358,12 +371,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import {
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
   sendPasswordResetEmail, onAuthStateChanged, signOut, deleteUser,
+  EmailAuthProvider, reauthenticateWithCredential,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
-  getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, serverTimestamp,
+  getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp,
   collection, getDocs, query, where, Timestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
 // -----------------------------------------------------------------------
 // Replace with YOUR Firebase project's web app config.
@@ -386,7 +400,6 @@ const db = getFirestore(app);
 const storage = getStorage(app);
 
 const MAX_IMAGES = 3;
-const LOCK_DAYS = 30;
 let currentUid = null;
 let unsubscribeSnapshot = null;
 
@@ -606,11 +619,6 @@ document.getElementById("story-form").addEventListener("submit", async (e) => {
   }
 });
 
-function imageAgeDays(uploadedAt) {
-  const ms = uploadedAt.seconds ? uploadedAt.seconds * 1000 : uploadedAt._seconds * 1000;
-  return (Date.now() - ms) / (1000 * 60 * 60 * 24);
-}
-
 function renderImageSlots(images) {
   const container = document.getElementById("image-slots");
   container.innerHTML = "";
@@ -619,14 +627,8 @@ function renderImageSlots(images) {
     const slot = document.createElement("div");
     slot.className = "image-slot";
     if (img) {
-      const ageDays = imageAgeDays(img.uploadedAt);
-      const locked = ageDays < LOCK_DAYS;
       const imgId = `img-slot-${i}-${img.id}`;
-      slot.innerHTML = `
-        <img id="${imgId}" src="${img.url}" alt="Uploaded photo ${i + 1}" />
-        ${locked ? `<span class="slot-lock">Locked ${Math.ceil(LOCK_DAYS - ageDays)}d more</span>`
-                 : `<span class="slot-lock">Eligible for replacement — contact the admin</span>`}
-      `;
+      slot.innerHTML = `<img id="${imgId}" src="${img.url}" alt="Uploaded photo ${i + 1}" />`;
       // If the file itself is gone (deleted in Storage but the Firestore
       // record wasn't cleaned up to match), don't leave the slot stuck —
       // clear the stale record automatically so it becomes uploadable again.
@@ -688,6 +690,45 @@ imageInput.addEventListener("change", async () => {
     showMessage(msg, "Uploaded — waiting on admin approval.", "success");
   } catch (err) {
     showMessage(msg, err.message, "error");
+  }
+});
+
+// ============================= DELETE ACCOUNT ============================
+document.getElementById("delete-account-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const msg = document.getElementById("delete-account-message");
+  const password = document.getElementById("delete-password").value;
+  const user = auth.currentUser;
+
+  if (!confirm("This will permanently delete your profile, story, and photos. This cannot be undone. Continue?")) {
+    return;
+  }
+
+  try {
+    // Deleting an account is a sensitive operation — Firebase requires a
+    // recent sign-in, which is why we ask for the password again here
+    // rather than trusting however long ago they originally logged in.
+    const credential = EmailAuthProvider.credential(user.email, password);
+    await reauthenticateWithCredential(user, credential);
+
+    // Remove every uploaded photo from Storage.
+    for (const img of currentImages) {
+      await deleteObject(ref(storage, img.storagePath)).catch(() => {});
+    }
+
+    // Remove the Firestore profile document.
+    await deleteDoc(doc(db, "users", user.uid));
+
+    // Remove the Auth account itself — nothing is left anywhere.
+    await deleteUser(user);
+
+    // onAuthStateChanged will detect the sign-out and return to landing.
+  } catch (err) {
+    if (err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") {
+      showMessage(msg, "That password is incorrect.", "error");
+    } else {
+      showMessage(msg, err.message, "error");
+    }
   }
 });
 
